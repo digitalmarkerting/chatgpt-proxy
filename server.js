@@ -2,17 +2,9 @@ const express = require('express');
 const axios = require('axios');
 const app = express();
 
-// Render menggunakan port dari pemboleh ubah persekitaran
-const port = process.env.PORT || 3000;
-
-// Kunci API ChatGPT dari pemboleh ubah persekitaran (ditetapkan di Render)
-const CHATGPT_API_KEY = process.env.CHATGPT_API_KEY;
-const CHATGPT_URL = 'https://api.openai.com/v1/chat/completions';
-
-// Benarkan parsing badan JSON
 app.use(express.json());
 
-// Benarkan CORS untuk permintaan dari interactivelink.co
+// CORS configuration
 app.use((req, res, next) => {
   res.header('Access-Control-Allow-Origin', 'https://interactivelink.co');
   res.header('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept');
@@ -23,41 +15,78 @@ app.use((req, res, next) => {
   next();
 });
 
-// Endpoint untuk menghantar mesej ke ChatGPT
+// ChatGPT endpoint
 app.post('/chatgpt', async (req, res) => {
+  const { message } = req.body;
+
+  // Validate request
+  if (!message) {
+    return res.status(400).json({ error: 'Missing message' });
+  }
+
+  // ChatGPT API configuration
+  const CHATGPT_API_KEY = process.env.CHATGPT_API_KEY;
+  const CHATGPT_API_URL = 'https://api.openai.com/v1/chat/completions';
+
   try {
-    const { message } = req.body;
-    if (!message) {
-      console.error('Error: Missing message in request body');
-      return res.status(400).json({ error: 'Missing message' });
-    }
-
-    console.log('Received message:', message);
-
+    // Send request to ChatGPT with system prompt
     const response = await axios.post(
-      CHATGPT_URL,
+      CHATGPT_API_URL,
       {
         model: 'gpt-3.5-turbo',
-        messages: [{ role: 'user', content: message }],
+        messages: [
+          {
+            role: 'system',
+            content: 'Anda ialah pembantu mesra pengguna yang hanya menjawab soalan berkaitan produk penjagaan kesihatan XYZ sahaja. Jika pengguna bertanya soalan yang di luar skop produk ini, balas dengan sopan:
+"Maaf, saya hanya boleh menjawab soalan berkaitan produk kami. Bagaimana saya boleh bantu anda dengan rangkaian kesihatan kami?"
+
+Untuk rujukan syarikat dan produk, gunakan pautan berikut:
+
+Maklumat syarikat:
+https://www.tdchb.com/
+
+Maklumat produk (semua lini):
+
+https://www.tdchb.com/about-c2joy/
+
+https://www.tdchb.com/about-berrymix/
+
+https://www.tdchb.com/about-colever/
+
+https://www.tdchb.com/about-alithera/
+
+https://www.tdchb.com/about-blesseed/
+
+https://www.tdchb.com/about-alitheraplus/'
+          },
+          {
+            role: 'user',
+            content: message
+          }
+        ],
+        max_tokens: 150
       },
       {
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${CHATGPT_API_KEY}`,
-        },
+          'Authorization': `Bearer ${CHATGPT_API_KEY}`
+        }
       }
     );
 
+    // Extract reply from ChatGPT
     const reply = response.data.choices[0].message.content;
-    console.log('ChatGPT reply:', reply);
+
+    // Send response
     res.json({ status: 'success', reply });
   } catch (error) {
-    console.error('Error:', error.message, error.response?.data);
-    res.status(500).json({ error: error.message });
+    console.error('Error:', error.response ? error.response.data : error.message);
+    res.status(500).json({ error: 'Request failed with status code ' + (error.response ? error.response.status : 500) });
   }
 });
 
-// Mulakan pelayan
-app.listen(port, () => {
-  console.log(`Server running at port ${port}`);
+// Start server
+const PORT = process.env.PORT || 10000;
+app.listen(PORT, () => {
+  console.log(`Server running at port ${PORT}`);
 });
